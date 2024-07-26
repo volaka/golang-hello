@@ -1,0 +1,62 @@
+# Compiled Object files, Static and Dynamic libs (Shared Objects)
+*.o
+*.a
+*.so
+
+# Folders
+_obj
+_test
+
+# Architecture specific extensions/prefixes
+*.[568vq]
+[568vq].out
+
+# Kernel Module Compile Results
+*.ko
+*.mod.*
+*.cmd
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Generated files
+*.gen.go
+
+# Dependency directories
+/vendor/
+/Godeps/
+
+# Output files
+*.out
+*.exe
+*.test
+*.prof
+*.cover
+
+# Log files
+*.log
+log/
+logs/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
+
+# IDE specific files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment specific files
+.env
+.env.local
+.env.test

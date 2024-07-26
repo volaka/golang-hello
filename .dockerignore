@@ -1,0 +1,23 @@
+# Binaries for programs and plugins
+bin/
+obj/
+
+# Vendor directory
+vendor/
+
+# Git files
+.git/
+.gitignore
+
+# Node modules
+node_modules/
+
+# Log files
+*.log
+
+# Docker files
+Dockerfile
+docker-compose.yml
+
+# Environment variables file
+.env*
