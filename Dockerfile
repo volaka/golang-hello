@@ -1,23 +1,32 @@
 # Use the official Golang image as the base image
-FROM golang:1.22-alpine
+FROM golang:1.21 as builder
 
 # Set the working directory inside the container
 WORKDIR /app
 
-# Copy the Go module files
+# Copy the Go modules manifests
 COPY go.mod go.sum ./
 
-# Download and install the Go dependencies
+# Download the Go modules
 RUN go mod download
 
-# Copy the rest of the application source code
+# Copy the source code
 COPY . .
 
 # Build the Go application
 RUN go build -o main .
 
-# Expose the port that the API server will listen on
+# Use a minimal base image
+FROM alpine:latest
+
+# Set the working directory inside the container
+WORKDIR /root/
+
+# Copy the binary from the builder stage
+COPY --from=builder /app/main .
+
+# Expose the application port
 EXPOSE 8080
 
-# Set the command to run the API server when the container starts
+# Command to run the application
 CMD ["./main"]

@@ -60,3 +60,7 @@ logs/
 .env
 .env.local
 .env.test
+
+docker-compose.yml
+docker-compose-local-db.yml
+docker-compose-test-db.yml
