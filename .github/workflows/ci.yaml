@@ -76,5 +76,5 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: ${{ steps.login-ecr.outputs.registry }}/${{github.repository}}:${{ github.sha }}
-          cache-from: type=registry,ref=${{github.repository}}:${{ github.sha }}:buildcache
-          cache-to: type=registry,ref=${{github.repository}}:${{ github.sha }}:buildcache,mode=max
+          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{github.repository}}:${{ github.sha }}:latest
+          cache-to: type=inline
