@@ -59,7 +59,6 @@ logs/
 # Environment specific files
 .env
 .env.local
-.env.test
 
 docker-compose.yml
 docker-compose-local-db.yml
