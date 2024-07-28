@@ -32,7 +32,7 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ steps.login-ecr.outputs.registry }}/${{github.repository}}:${{ github.sha }}
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{github.repository}}:${{ github.ref_name }}
           cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{github.repository}}:${{ github.sha }}:latest
           cache-to: type=inline
 
