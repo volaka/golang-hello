@@ -22,6 +22,7 @@ jobs:
         path: |
           ~/.cache/go-build
           ~/go/pkg/mod
+          ~/.docker
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-
@@ -56,6 +57,7 @@ jobs:
     - name: Docker Setup Buildx
       uses: docker/setup-buildx-action@v3
 
+
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
@@ -74,3 +76,5 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: ${{ steps.login-ecr.outputs.registry }}/${{github.repository}}:${{ github.sha }}
+          cache-from: type=registry,ref=${{github.repository}}:${{ github.sha }}:buildcache
+          cache-to: type=registry,ref=${{github.repository}}:${{ github.sha }}:buildcache,mode=max
