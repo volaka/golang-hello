@@ -22,18 +22,15 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Amazon ECR "Login" Action for GitHub Actions
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
       - name: Build and push Docker images
-        id: build-image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ steps.login-ecr.outputs.registry }}/$${{ github.repository }}:${{ github.ref_name }}
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{github.repository}}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{github.repository}}:${{ github.sha }}:latest
+          cache-to: type=inline
 
   deploy:
     needs: build
