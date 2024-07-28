@@ -64,6 +64,7 @@ jobs:
 
     - name: Amazon ECR "Login" Action for GitHub Actions
       uses: aws-actions/amazon-ecr-login@v2
+      id: login-ecr
 
     - name: Build and push Docker images
       uses: docker/build-push-action@v6
