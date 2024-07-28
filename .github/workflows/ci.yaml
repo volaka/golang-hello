@@ -51,6 +51,7 @@ jobs:
         
         # Run the test database
         docker-compose -f docker-compose-local-db.yml up -d
+        docker-compose -f docker-compose-local-db.yml ps -a # Wait for 'Healthy' status
         go test ./...
         docker-compose down
 
