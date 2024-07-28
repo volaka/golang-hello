@@ -126,7 +126,19 @@ func TestLoadEnv(t *testing.T) {
 
 	t.Run("Successful environment variable loading", func(t *testing.T) {
 		os.Clearenv()
-		err := loadEnv()
+		// create .env file with all required environment variables
+		f, err := os.Create(".env")
+		if err != nil {
+			t.Fatalf("Failed to create .env file: %v", err)
+		}
+		defer f.Close()
+
+		_, err = f.WriteString("DB_HOST=db\nDB_USER=volaka\nDB_PASSWORD=volaka_password\nDB_NAME=volaka\nDB_PORT=5432\nPORT=8080\nPOSTGRES_USER=volaka\nPOSTGRES_PASSWORD=volaka_password\nPOSTGRES_DB=volaka\n")
+		if err != nil {
+			t.Fatalf("Failed to write to .env file: %v", err)
+		}
+
+		err = loadEnv()
 		if err != nil {
 			t.Errorf("Expected error due to missing environment variables, but got nil")
 		}
