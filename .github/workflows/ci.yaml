@@ -30,7 +30,27 @@ jobs:
       run: go mod download
 
     - name: Run tests
-      run: go test ./...
+      run: |
+        # Create .env.local file
+        # Define the file name
+        file=".env.local"
+        
+        # Write the environment variables to the file
+        cat <<EOL > $file
+        DB_HOST=localhost
+        DB_USER=volaka
+        DB_PASSWORD=volaka_password
+        DB_NAME=volaka
+        DB_PORT=5432
+        PORT=8080
+        POSTGRES_USER=volaka
+        POSTGRES_PASSWORD=volaka_password
+        POSTGRES_DB=volaka
+        EOL
+        
+        # Run the test database
+        docker-compose -f docker-compose-local-db.yml up -d
+        go test ./...
 
     - name: Docker Setup Buildx
       uses: docker/setup-buildx-action@v3

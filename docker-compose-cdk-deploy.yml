@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  cdk-deploy:
+    build:
+      context: .
+      dockerfile: Dockerfile-cdk
+    volumes:
+      - ~/.aws:/root/.aws
+    environment:
+      - AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+      - AWS_REGION=eu-west-1

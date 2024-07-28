@@ -1,47 +1,71 @@
 import * as cdk from 'aws-cdk-lib';
-import { Construct } from 'constructs';
-import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
-import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as rds from 'aws-cdk-lib/aws-rds';
-import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
+import * as codedeploy from 'aws-cdk-lib/aws-codedeploy';
+import * as secretmanager from "aws-cdk-lib/aws-secretsmanager";
 
-export class GolangHello extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+export class GolangHelloWorld extends cdk.Stack {
+  private readonly _vpc: ec2.Vpc;
+  private readonly _cluster: ecs.Cluster;
+  private readonly _securityGroup: ec2.SecurityGroup;
+  private readonly _loadBalancer: elbv2.ApplicationLoadBalancer;
+  private readonly _blueTargetGroup: elbv2.ApplicationTargetGroup;
+  private readonly _greenTargetGroup: elbv2.ApplicationTargetGroup;
+  private readonly _listener: elbv2.ApplicationListener;
+  private readonly _testListener: elbv2.ApplicationListener;
+  private readonly _dbCredentialsSecret: secretmanager.Secret;
+  private readonly _dbSecurityGroup: ec2.SecurityGroup;
+  private readonly _dbSubnetGroup: rds.SubnetGroup;
+  private readonly _dbCluster: rds.ServerlessCluster;
+  private readonly _rdsParameterGroup: rds.ParameterGroup;
+  private readonly _ecrRepository: ecr.Repository;
+  private readonly _codeDeployApp: codedeploy.EcsApplication;
+  private readonly _deploymentGroup: codedeploy.EcsDeploymentGroup;
+  private readonly _ecsService: ecs.FargateService;
+
+  constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // Create a VPC
-    const vpc = new ec2.Vpc(this, 'HelloVPC', {
-      maxAzs: 3
+    // =========== VPC ===========
+
+    this._vpc = new ec2.Vpc(this, "CustomVpc", {
+      subnetConfiguration: [
+        {
+          name: "custom-vpc-public-subnet",
+          subnetType: ec2.SubnetType.PUBLIC,
+          cidrMask: 24,
+        },
+        {
+          name: "custom-vpc-private-subnet",
+          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+          cidrMask: 24,
+        },
+        {
+          name: "custom-vpc-isolated-subnet",
+          subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
+          cidrMask: 24,
+        },
+      ],
+      maxAzs: 2,
+      natGateways: 2,
+      vpcName: "CustomVpc",
     });
 
-    // Create an ECS cluster
-    const cluster = new ecs.Cluster(this, 'HelloCluster', {
-      vpc: vpc,
-      clusterName: 'golang-hello-cluster'
+    this._vpc.addInterfaceEndpoint("EcrEndpoint", {
+      service: ec2.InterfaceVpcEndpointAwsService.ECR,
     });
 
-    // Create an ECR repository
-    const repository = new ecr.Repository(this, 'HelloRepository', {
-      repositoryName: 'golang-hello',
-      imageTagMutability: ecr.TagMutability.MUTABLE,
-      lifecycleRules: [{
-        maxImageCount: 8,
-      }],
-    });
 
-    // Define the ECS Fargate task definition
-    const taskDefinition = new ecs.FargateTaskDefinition(this, 'HelloTaskDefinition', {
-      memoryLimitMiB: 512,
-      cpu: 256,
-    });
+    // =========== RDS ===========
 
     // Create a secret for the RDS credentials
-    const dbCredentialsSecret = new secretsmanager.Secret(this, 'DBCredentialsSecret', {
+    this._dbCredentialsSecret = new secretmanager.Secret(this, 'DBCredentialsSecret', {
       secretName: 'postgresCredentials',
       generateSecretString: {
-        secretStringTemplate: JSON.stringify({ username: 'golang' }),
+        secretStringTemplate: JSON.stringify({username: 'golang'}),
         excludePunctuation: true,
         includeSpace: false,
         generateStringKey: 'password',
@@ -50,84 +74,222 @@ export class GolangHello extends cdk.Stack {
     });
 
     // Create Security Group for the RDS cluster
-    const dbSecurityGroup = new ec2.SecurityGroup(this, 'DBSecurityGroup', {
-      vpc,
+    this._dbSecurityGroup = new ec2.SecurityGroup(this, 'DBSecurityGroup', {
+      vpc: this._vpc,
       description: 'Allow connections to Aurora PostgreSQL',
       securityGroupName: 'DBSecurityGroup',
       allowAllOutbound: true,
     });
 
     // Add RDS inbound rules for service to be able to access the database
-    dbSecurityGroup.addIngressRule(ec2.Peer.ipv4(vpc.vpcCidrBlock), ec2.Port.tcp(5432), 'Allow inbound from VPC');
+    this._dbSecurityGroup.addIngressRule(ec2.Peer.ipv4(this._vpc.vpcCidrBlock), ec2.Port.tcp(5432), 'Allow inbound from VPC');
 
     // RDS Subnet Group
-    const dbSubnetGroup = new rds.SubnetGroup(this, 'DBSubnetGroup', {
-      vpc,
+    this._dbSubnetGroup = new rds.SubnetGroup(this, 'DBSubnetGroup', {
+      vpc: this._vpc,
       description: 'Database subnet group',
-      vpcSubnets: vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS }),
+      vpcSubnets: this._vpc.selectSubnets({subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS}),
       subnetGroupName: 'DBSubnetGroup',
     });
 
+    // RDS Parameter Group
+
+    const rdsEngine = rds.DatabaseClusterEngine.auroraPostgres({version: rds.AuroraPostgresEngineVersion.VER_13_14});
+
+    this._rdsParameterGroup = new rds.ParameterGroup(this, 'RDSParameterGroup', {
+      engine: rdsEngine,
+      parameters: {
+        'rds.force_ssl': '1',
+      },
+    });
+
+
     // Create the RDS serverless cluster
-    const dbCluster = new rds.ServerlessCluster(this, 'ServerlessPostgresCluster', {
-      engine: rds.DatabaseClusterEngine.AURORA_POSTGRESQL,
-      vpc,
-      credentials: rds.Credentials.fromSecret(dbCredentialsSecret),
+    this._dbCluster = new rds.ServerlessCluster(this, 'ServerlessPostgresCluster', {
+      engine: rdsEngine,
+      vpc: this._vpc,
+      credentials: rds.Credentials.fromSecret(this._dbCredentialsSecret),
       scaling: {
         autoPause: cdk.Duration.minutes(10), // Auto pause after 10 minutes of inactivity
-        minCapacity: rds.AuroraCapacityUnit.ACU_1, // Minimum capacity
+        minCapacity: rds.AuroraCapacityUnit.ACU_2, // Minimum capacity
         maxCapacity: rds.AuroraCapacityUnit.ACU_4, // Maximum capacity
       },
-      defaultDatabaseName: 'golang-hello',
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      parameterGroup: this._rdsParameterGroup,
+      defaultDatabaseName: 'hello',
+      removalPolicy: cdk.RemovalPolicy.DESTROY, // in production this would be RETAIN
       clusterIdentifier: 'golang-hello-cluster',
       backupRetention: cdk.Duration.days(7),
       enableDataApi: true,
-      securityGroups: [dbSecurityGroup],
-      subnetGroup: dbSubnetGroup,
+      securityGroups: [this._dbSecurityGroup],
+      subnetGroup: this._dbSubnetGroup,
     });
 
-    // Add a container to the task definition
-    const container = taskDefinition.addContainer('HelloContainer', {
-      image: ecs.ContainerImage.fromEcrRepository(repository),
-      logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'golang-hello' }),
-      environment: {
-        DB_HOST: dbCluster.clusterEndpoint.hostname,
-        DB_NAME: 'golang-hello',
-        DB_USER: dbCredentialsSecret.secretValueFromJson('username').toString(),
-        DB_PASSWORD: dbCredentialsSecret.secretValueFromJson('password').toString(),
+    // =========== ECS ===========
+
+    this._cluster = new ecs.Cluster(this, 'EcsCluster', {
+      clusterName: 'hello-cluster',
+      vpc: this._vpc,
+    });
+
+    // =========== ECS Load Balancer =
+
+    this._securityGroup = new ec2.SecurityGroup(this, 'SecurityGroup', {
+      vpc: this._vpc,
+      allowAllOutbound: true
+    })
+
+    this._securityGroup.addIngressRule(this._securityGroup, ec2.Port.tcp(8080), 'Group Inbound', false);
+
+    this._loadBalancer = new elbv2.ApplicationLoadBalancer(this, 'NetworkLoadBalancer', {
+      vpc: this._vpc,
+      loadBalancerName: 'hello-cluster-nlb',
+      vpcSubnets: {
+        subnets: this._vpc.privateSubnets,
+        onePerAz: true,
+        availabilityZones: this._vpc.availabilityZones
       },
+      securityGroup: this._securityGroup
+    });
+
+    // =========== ECS Target Groups ===========
+
+    this._blueTargetGroup = new elbv2.ApplicationTargetGroup(this, 'blueGroup', {
+      vpc: this._vpc,
+      port: 80,
+      targetGroupName: "hello-cluster-blue",
+      targetType: elbv2.TargetType.IP,
+      healthCheck: {
+        protocol: elbv2.Protocol.HTTP,
+        path: '/health',
+        timeout: cdk.Duration.seconds(30),
+        interval: cdk.Duration.seconds(60),
+        healthyHttpCodes: '200'
+      }
+    });
+
+    this._greenTargetGroup = new elbv2.ApplicationTargetGroup(this, 'greenGroup', {
+      vpc: this._vpc,
+      port: 80,
+      targetType: elbv2.TargetType.IP,
+      targetGroupName: "hello-cluster-green",
+      healthCheck: {
+        protocol: elbv2.Protocol.HTTP,
+        path: '/health',
+        timeout: cdk.Duration.seconds(30),
+        interval: cdk.Duration.seconds(60),
+        healthyHttpCodes: '200'
+      }
+    });
+
+    this._listener = this._loadBalancer.addListener('albProdListener', {
+      port: 80,
+      defaultTargetGroups: [this._blueTargetGroup]
+    });
+
+    this._testListener = this._loadBalancer.addListener('albTestListener', {
+      port: 8080,
+      defaultTargetGroups: [this._greenTargetGroup]
+    });
+
+    // ======== ECR Repository =========
+
+    this._ecrRepository = new ecr.Repository(this, 'EcrRepository', {
+      repositoryName: 'volaka/golang-hello',
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      imageTagMutability: ecr.TagMutability.IMMUTABLE,
+      lifecycleRules: [
+        {
+          maxImageCount: 8,
+          description: 'Keep only the latest 8 images'
+        }
+      ]
+    });
+
+
+    // =========== ECS Service ===========
+
+    const taskDefinition = new ecs.FargateTaskDefinition(this, 'TaskDef', {
+      cpu: 256,
+      memoryLimitMiB: 512,
+    });
+
+    const container = taskDefinition.addContainer('AppContainer', {
+      image: ecs.ContainerImage.fromRegistry(process.env.ECR_IMAGE_URI),
+      memoryLimitMiB: 512,
+      cpu: 256,
+      essential: true,
+      logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'ecs' }),
     });
 
     container.addPortMappings({
-      containerPort: 8080,
+      containerPort: 80,
     });
 
-    // Create ECS Fargate service
-    const service = new ecs.FargateService(this, 'HelloService', {
-      cluster: cluster,
-      taskDefinition: taskDefinition,
+    this._ecsService = new ecs.FargateService(this, 'EcsService', {
+      cluster: this._cluster,
+      taskDefinition,
       desiredCount: 1,
+      securityGroups: [this._securityGroup],
+      vpcSubnets: {
+        subnets: this._vpc.privateSubnets,
+      },
     });
 
-    // Create an Application Load Balancer (ALB)
-    const alb = new elbv2.ApplicationLoadBalancer(this, 'ALB', {
-      vpc: vpc,
-      internetFacing: true,
+    // Define CodeDeploy Application
+    this._codeDeployApp = new codedeploy.EcsApplication(this, 'CodeDeployApp', {
+      applicationName: 'GolangHelloCodeDeployApp',
     });
 
-    // Create a target group for the service
-    const targetGroup = new elbv2.ApplicationTargetGroup(this, 'TargetGroup', {
-      vpc: vpc,
-      port: 8080,
-      protocol: elbv2.ApplicationProtocol.HTTP,
-      targets: [service],
+    // Define CodeDeploy Deployment Group
+    this._deploymentGroup = new codedeploy.EcsDeploymentGroup(this, 'DeploymentGroup', {
+      application: this._codeDeployApp,
+      deploymentGroupName: 'GolangHelloDeploymentGroup',
+      service: ecs.FargateService.fromFargateServiceAttributes(this, 'FargateService', {
+        cluster: this._cluster,
+        serviceName: 'hello-service',
+      }),
+      blueGreenDeploymentConfig: {
+        blueTargetGroup: this._blueTargetGroup,
+        greenTargetGroup: this._greenTargetGroup,
+        listener: this._listener,
+        testListener: this._testListener,
+      },
+      autoRollback: {
+        failedDeployment: true,
+        stoppedDeployment: true,
+      },
     });
 
-    // Create a listener for the ALB
-    const listener = alb.addListener('Listener', {
-      port: 80,
-      defaultTargetGroups: [targetGroup],
+    // ========== OUTPUTS ============
+
+    // Output ALB DNS name
+    new cdk.CfnOutput(this, 'ALBDnsName', {
+      value: this._loadBalancer.loadBalancerDnsName,
+      exportName: 'ALBDnsName',
+    });
+
+    // Output Blue Target Group ARN
+    new cdk.CfnOutput(this, 'BlueTargetGroupArn', {
+      value: this._blueTargetGroup.targetGroupArn,
+      exportName: 'BlueTargetGroupArn',
+    });
+
+    // Output Green Target Group ARN
+    new cdk.CfnOutput(this, 'GreenTargetGroupArn', {
+      value: this._greenTargetGroup.targetGroupArn,
+      exportName: 'GreenTargetGroupArn',
+    });
+
+    // Output CodeDeploy Application Name
+    new cdk.CfnOutput(this, 'CodeDeployAppName', {
+      value: this._codeDeployApp.applicationName,
+      exportName: 'CodeDeployAppName',
+    });
+
+    // Output CodeDeploy Deployment Group Name
+    new cdk.CfnOutput(this, 'CodeDeployDeploymentGroupName', {
+      value: this._deploymentGroup.deploymentGroupName,
+      exportName: 'CodeDeployDeploymentGroupName',
     });
   }
 }

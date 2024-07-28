@@ -63,3 +63,5 @@ logs/
 docker-compose.yml
 docker-compose-local-db.yml
 docker-compose-test-db.yml
+
+venv

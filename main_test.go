@@ -155,7 +155,7 @@ func TestInitDB(t *testing.T) {
 	t.Run("Successful database connection and migration", func(t *testing.T) {
 		os.Clearenv()
 		defer godotenv.Load()
-		godotenv.Load(".env.test")
+		godotenv.Load(".env.local")
 
 		initDB()
 
@@ -210,7 +210,7 @@ func TestValidateUsername(t *testing.T) {
 func TestSaveUser(t *testing.T) {
 	os.Clearenv()
 	defer godotenv.Load()
-	godotenv.Load(".env.test")
+	godotenv.Load(".env.local")
 
 	initDB()
 	// Test cases
@@ -253,7 +253,7 @@ func TestSaveUser(t *testing.T) {
 func TestGetBirthdayMessage(t *testing.T) {
 	os.Clearenv()
 	defer godotenv.Load()
-	godotenv.Load(".env.test")
+	godotenv.Load(".env.local")
 
 	initDB()
 	// Clean up the database before the test
