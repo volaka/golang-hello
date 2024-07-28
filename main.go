@@ -71,7 +71,7 @@ func checkEnvironment() error {
 func loadEnv() error {
 	environment := os.Getenv("ENVIRONMENT")
 	if environment != "PRODUCTION" {
-		err := godotenv.Load()
+		err := godotenv.Load(".env", ".env.local")
 		if err != nil {
 			return fmt.Errorf("error loading .env file: %v", err)
 		}
