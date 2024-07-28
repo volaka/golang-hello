@@ -52,4 +52,6 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_IMAGE_URI: ${{ steps.build-image.outputs.image }}
-        run: cdk deploy --require-approval never
+        run: |
+          cd cdk
+          cdk deploy --require-approval never
