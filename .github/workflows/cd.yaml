@@ -3,6 +3,9 @@ name: CD
 on:
   release:
     types: [published]
+  push:
+    branches:
+      - main
 
 jobs:
   build:
@@ -45,6 +48,9 @@ jobs:
         with:
           path: "cdk"
 
+      - name: Print working directory
+        run: pwd
+
       - name: Install AWS CDK
         run: npm install -g aws-cdk
 
@@ -58,4 +64,5 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_IMAGE_URI: ${{ steps.build-image.outputs.image }}
         run: |
+          pwd
           cdk deploy --require-approval never
