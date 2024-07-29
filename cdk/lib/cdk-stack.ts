@@ -196,7 +196,7 @@ export class GolangHelloWorld extends cdk.Stack {
     this._ecrRepository = new ecr.Repository(this, 'EcrRepository', {
       repositoryName: 'volaka/golang-hello',
       removalPolicy: cdk.RemovalPolicy.DESTROY,
-      imageTagMutability: ecr.TagMutability.IMMUTABLE,
+      imageTagMutability: ecr.TagMutability.MUTABLE,
       lifecycleRules: [
         {
           maxImageCount: 8,
