@@ -42,9 +42,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Switch to cdk path
-        run: cd cdk
+        with:
+          path: "cdk"
 
       - name: Install AWS CDK
         run: npm install -g aws-cdk
