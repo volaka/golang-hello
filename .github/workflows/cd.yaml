@@ -49,7 +49,9 @@ jobs:
           path: "cdk"
 
       - name: Print working directory
-        run: pwd
+        run: |
+          cd cdk
+          pwd
 
       - name: Install AWS CDK
         run: npm install -g aws-cdk
