@@ -43,8 +43,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Switch to cdk path
+        run: cd cdk
+
       - name: Install AWS CDK
         run: npm install -g aws-cdk
+
+      - name: Install packages
+        run: npm install
 
       - name: Deploy to ECS
         env:
@@ -53,5 +59,4 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_IMAGE_URI: ${{ steps.build-image.outputs.image }}
         run: |
-          cd cdk
           cdk deploy --require-approval never
